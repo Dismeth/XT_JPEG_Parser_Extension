@@ -18,9 +18,11 @@ public:
 		buffer.resize(desiredLength);
 		if (!file.read((char*)buffer.data(), desiredLength))
 			return NULL;
+		std::cout << std::hex << "desiredLength: " << desiredLength << " at "  << file.tellg() << std::dec << std::endl;
 		return buffer.data();
 	}
 	bool SkipBuffer(unsigned desiredLength) override {
+		std::cout << std::hex << "Skipping desiredLength: " << desiredLength << " at "  << file.tellg() << std::dec << std::endl;
 		return (bool)file.seekg(desiredLength, std::ios::cur);
 	}
 private:
@@ -48,6 +50,9 @@ int main(int argc, const char** argv)
 		std::cout << "error: no EXIF or XMP metadata\n";
 		return -3;
 	}
+
+	// Parse image for DQT tables
+
 
 	// print extracted metadata
 	if (imageEXIF.ImageWidth || imageEXIF.ImageHeight)

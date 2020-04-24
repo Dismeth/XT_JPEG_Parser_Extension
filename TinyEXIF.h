@@ -92,6 +92,9 @@ public:
 	// Advance current buffer position with the desired size;
 	// return false if stream ends in less than the desired size.
 	virtual bool SkipBuffer(unsigned desiredLength) = 0;
+
+	// Return the pointer to the beginning of the desired size buffer
+	// following current buffer position.
 };
 
 //
@@ -127,6 +130,9 @@ public:
 	// Set all data members to default values.
 	// Should be called before parsing a new stream.
 	void clear();
+
+	// Find all DQT. Poor implementation right now
+	void parseDQT(EXIFStream& stream);
 
 private:
 	// Parse tag as Image IFD.
