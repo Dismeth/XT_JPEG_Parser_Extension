@@ -760,25 +760,33 @@ namespace TinyEXIF {
 		std::cout << "We are inside" << std::endl;
 		if (!stream.IsValid())
 			return;
-	
+		uint8_t signature = 0xF0;
+		uint8_t signaturee = 0x00;
+
+		// Where are we?
+		unsigned getPositionAndReset{0};
+		getPositionAndReset = stream.StartNewSearch(0);
+		
 		// Sanity check: all JPEG files start with 0xFFD8 and end with 0xFFD9
 		// This check also ensures that the user has supplied a correct value for len.
 		const uint8_t* buf(stream.GetBuffer(2));
 		if (buf == NULL || buf[0] != JM_START || buf[1] != JM_SOI)
 			return;
-
+		uint8_t startMarkerA{ 0 };
+		uint8_t startMarkerB{ 0 };
+		int dqt_counter{ 0 };
+		
+		//while ((buf = stream.GetBuffer(2)) != NULL) {
 		while ((buf = stream.GetBuffer(2)) != NULL) {
 			// find next marker;
 			// in cases of markers appended after the compressed data,
 			// optional JM_START fill bytes may precede the marker
-			if (*buf++ != JM_START)
-				break;
-			uint8_t marker;
-			while ((marker = buf[0]) == JM_START && (buf = stream.GetBuffer(1)) != NULL);
+
 			// select marker
 			uint16_t sectionLength;
-			if (marker == JM_DQT) {
-			
+			startMarkerA = buf[0];
+			startMarkerB = buf[1];
+			if ((startMarkerA == JM_START && startMarkerB == JM_DQT)) {
 				// This is the table we want. Parse the table {FF DB} {00 43} {TABLE} BIG ENDIAN. 43 = 67 bytes. 
 				// How to calculate n bytes :: 
 				// 67 bytes = Length (2B) + QT info (1B) + QT Table (n B)	=>		QT Table (64 B) =>			 n = 64 bytes
@@ -789,19 +797,21 @@ namespace TinyEXIF {
 
 				const uint8_t* buf_temp{ 0 };
 				// How many DQT tables are there?
-				int dqt_counter{ 0 };
 				if ((buf_temp = stream.GetBuffer(2)) == NULL) // Lets find how big the table is
 					return;
+
+				std::cout << "Table nr: " << dqt_counter << std::endl;
 
 				uint16_t DQTsectionLength{ 0 };
 				DQTsectionLength = EntryParser::parse16(buf_temp, false); // Calculate the section length (table length) false means BIG ENDIAN
 				std::cout << "--- Found DQT. How big is it? \n";
-				std::cout << DQTsectionLength << std::endl;
+
 				std::vector <int> dqt_info{ 2,1,0 }; // [0] dqt_length, [1] dqt_info, [2] dqt_table 
 
 				dqt_info[2] = DQTsectionLength - dqt_info[0] - dqt_info[1];
 
-				if (dqt_info[2] >= 14) {
+				if (dqt_info[2] >= 0) {
+					std::cout << DQTsectionLength << " -> valid" << std::endl;
 					// Open a data.bin and write to the file.
 					std::fstream test_write;
 					test_write.open("data.bin", std::ios::in | std::ios::out | std::ios::app | std::ios::binary);
@@ -819,19 +829,69 @@ namespace TinyEXIF {
 						test_write.put(dqt_byte);
 					}
 					// Make sure we have some identificators
-					test_write.put(0xf0);
-					test_write.put(0xf0);
+					test_write.put(signature);
+					test_write.put(signaturee);
+					signaturee++;
 					// Close the file.
 					test_write.close();
+					dqt_counter++;
+				}
+				else {
+					std::cout << DQTsectionLength << " <- Not valid" << std::endl;
 				}
 			}
-			else {
-				if ((buf = stream.GetBuffer(2)) == NULL ||
-					(sectionLength = EntryParser::parse16(buf, false)) <= 2 ||
-					!stream.SkipBuffer(sectionLength - 2))
-					return;
+			else if (startMarkerB == JM_START){
+				const uint8_t* buf_temp{ 0 };
+				buf_temp = stream.GetBuffer(1);
+				if (buf_temp[0] == JM_DQT) {
+					std::cout << "WE FOUND ANOTHER ONE!" << std::endl;
+					const uint8_t* buf_temp{ 0 };
+					// How many DQT tables are there?
+					std::cout << "Table nr: " << dqt_counter << std::endl;
+					if ((buf_temp = stream.GetBuffer(2)) == NULL) // Lets find how big the table is
+						return;
+
+					uint16_t DQTsectionLength{ 0 };
+					DQTsectionLength = EntryParser::parse16(buf_temp, false); // Calculate the section length (table length) false means BIG ENDIAN
+					std::cout << "--- Found DQT. How big is it? \n";
+
+					std::vector <int> dqt_info{ 2,1,0 }; // [0] dqt_length, [1] dqt_info, [2] dqt_table 
+
+					dqt_info[2] = DQTsectionLength - dqt_info[0] - dqt_info[1];
+
+					if (dqt_info[2] >= 0) {
+						std::cout << DQTsectionLength << " -> valid" << std::endl;
+						// Open a data.bin and write to the file.
+						std::fstream test_write;
+						test_write.open("data.bin", std::ios::in | std::ios::out | std::ios::app | std::ios::binary);
+
+						if (test_write.is_open()) {
+							std::cout << " -- Open file success\n";
+							//test_write.clear();
+						}
+
+
+						uint8_t dqt_byte{ 0 };
+						for (int i = 0; i < dqt_info[2]; i++) {
+							buf_temp = stream.GetBuffer(1);
+							dqt_byte = buf_temp[0];
+							test_write.put(dqt_byte);
+						}
+						// Make sure we have some identificators
+						test_write.put(signature);
+						test_write.put(signaturee);
+						signaturee++;
+						// Close the file.
+						test_write.close();
+						dqt_counter++;
+					}
+					else {
+						std::cout << DQTsectionLength << " <- Not valid" << std::endl;
+					}
+				}
 			}
 		}
+		stream.StartNewSearch(getPositionAndReset);
 		return;
 	}
 
@@ -947,6 +1007,9 @@ namespace TinyEXIF {
 			}
 			bool SkipBuffer(unsigned desiredLength) override {
 				return GetBuffer(desiredLength) != NULL;
+			}
+			unsigned StartNewSearch(unsigned desiredPos) override {
+				return desiredPos;
 			}
 		private:
 			const uint8_t* it, * const end;

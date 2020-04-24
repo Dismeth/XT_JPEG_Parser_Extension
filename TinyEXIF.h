@@ -95,6 +95,10 @@ public:
 
 	// Return the pointer to the beginning of the desired size buffer
 	// following current buffer position.
+	virtual unsigned StartNewSearch(unsigned desiredPos) = 0;
+
+	// Store the position
+	unsigned previousPosition = 0;
 };
 
 //

@@ -18,12 +18,18 @@ public:
 		buffer.resize(desiredLength);
 		if (!file.read((char*)buffer.data(), desiredLength))
 			return NULL;
-		std::cout << std::hex << "desiredLength: " << desiredLength << " at "  << file.tellg() << std::dec << std::endl;
+		//std::cout << std::hex << "desiredLength: " << desiredLength << " at "  << file.tellg() << std::dec << std::endl;
 		return buffer.data();
 	}
 	bool SkipBuffer(unsigned desiredLength) override {
 		std::cout << std::hex << "Skipping desiredLength: " << desiredLength << " at "  << file.tellg() << std::dec << std::endl;
 		return (bool)file.seekg(desiredLength, std::ios::cur);
+	}
+	unsigned StartNewSearch(unsigned desiredPos) override {
+		previousPosition = file.tellg();
+		file.seekg(desiredPos);
+		std::cout << std::hex << "desiredPos: " << desiredPos << " at " << previousPosition << " is now at " << file.tellg() << std::dec << std::endl;
+		return previousPosition;
 	}
 private:
 	std::ifstream file;
